@@ -1,0 +1,171 @@
+{
+  "name": "Debt_Terminator_Dashboard_Generator",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7c461f6f-1d13-4994-9ac7-8309726f562f",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* DATA PARSING LOGIC */\nconst items = $input.all();\n\nconst parsedItems = items.map(item => {\n  try {\n    // Deserialize the JSON string stored in the DB\n    const chargeData = JSON.parse(item.json.ChargeInfo);\n    \n    return {\n      json: {\n        ...item.json,\n        ChargeInfo: chargeData \n      }\n    };\n  } catch (error) {\n    return item;\n  }\n});\n\nreturn parsedItems;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ],
+      "id": "7b1f34e0-080f-4553-87ef-df2a1a61033b",
+      "name": "Parse Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* FINANCIAL AGGREGATION LOGIC */\nconst allClients = $input.all();\n\nlet totalReal = 0;\nlet totalDolar = 0;\nlet totalEuro = 0;\nlet expiryTrueCount = 0;\nlet expiryFalseCount = 0;\nlet totalProcesses = 0;\n\nallClients.forEach(item => {\n  const chargeInfo = item.json.ChargeInfo;\n\n  if (chargeInfo) {\n    ['processosImpo', 'processosExpo'].forEach(type => {\n      const processes = chargeInfo[type];\n      \n      if (Array.isArray(processes)) {\n        processes.forEach(proc => {\n          // Calculate financial totals per currency\n          totalReal += Number(proc.totalReal || 0);\n          totalDolar += Number(proc.totalDolar || 0);\n          totalEuro += Number(proc.totalEuro || 0);\n\n          // Categorize by payment terms (Spot vs Term)\n          if (proc.expiry === true) {\n            expiryTrueCount++;\n          } else {\n            expiryFalseCount++;\n          }\n\n          totalProcesses++;\n        });\n      }\n    });\n  }\n});\n\nreturn [\n  {\n    json: {\n      totalClients: allClients.length,\n      totalReal: totalReal.toFixed(2),\n      totalDolar: totalDolar.toFixed(2),\n      totalEuro: totalEuro.toFixed(2),\n      expiryTrueCount,\n      expiryFalseCount,\n      totalProcesses\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        0
+      ],
+      "id": "17734686-53d2-4338-8dc9-c32ae65e3ea9",
+      "name": "Get Totals - Total Clients - Total Expiry"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* DYNAMIC HTML GENERATION */\nlet loopItems = $('Parse Data').all().map(item => item.json.ChargeInfo);\n\nfunction generateHTMLFromData(data) {\n  let groupedData = {};\n\n  // Group processes by Client Entity\n  for (const clientItem of data) {\n    const client = clientItem.NomeCliente;\n    if (!client) continue;\n\n    if (!groupedData[client]) {\n      groupedData[client] = { processosImpo: [], processosExpo: [] };\n    }\n\n    if (Array.isArray(clientItem.processosImpo)) {\n      groupedData[client].processosImpo.push(...clientItem.processosImpo);\n    }\n    if (Array.isArray(clientItem.processosExpo)) {\n      groupedData[client].processosExpo.push(...clientItem.processosExpo);\n    }\n  }\n\n  let allTablesHTML = '';\n\n  for (const client in groupedData) {\n    // [HTML Table Construction Logic Redacted for Brevity - Matches Source]\n    // ... (Builds Import/Export tables with headers and rows)\n  }\n\n  return allTablesHTML;\n}\n\nlet tables = generateHTMLFromData(loopItems);\n\nreturn {\n  totals: $input.first().json,\n  dataCobra: new Date().toLocaleDateString('pt-BR'),\n  tables\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        0
+      ],
+      "id": "601e2461-0968-417c-8167-8fa92ed2102c",
+      "name": "Generate Tables"
+    },
+    {
+      "parameters": {
+        "html": "<!DOCTYPE html>\n<html lang=\"pt-BR\">\n  <head>\n    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <title>Executive Dashboard</title>\n    <style>\n      /* CSS STYLING FOR EMAIL CLIENT COMPATIBILITY */\n      body {\n        font-family: Arial, sans-serif;\n        background-color: #f4f4f9;\n        margin: 0;\n        padding: 10px;\n      }\n      /* ... [Standard CSS Styles Preserved] ... */\n    </style>\n  </head>\n  <body>\n    \n    <span style=\"display:none\">\n      <img src=\"#\" width=\"1\" height=\"1\" alt=\"\" style=\"display:block;\">\n    </span>\n    <div class=\"container\">\n      <div class=\"header\">\n        <h1>Debt Recovery Dashboard</h1>\n      </div>\n      \n      \n      <div class=\"totals\">\n        <div class=\"total-card\">\n          <h3>Execution Date</h3>\n          <p> {{ $input.item.json.dataCobra }} </p>\n        </div>\n        <div class=\"total-card\">\n          <h3>Total Clients</h3>\n          <p> {{ $json.totals.totalClients }} </p>\n        </div>\n        \n      </div>\n      \n      \n      <div class=\"footer\">\n        <h2>Inconsistency Report</h2>\n        <p>Attached is the Excel file detailing data inconsistencies preventing automated billing.</p>\n        <hr>\n        <div id=\"chargedTables\">\n        <h2>Successfully Billed Processes: </h2>\n        {{$input.item.json.tables}}\n        </div>\n        <p>Automated Generation System</p>\n      </div>\n    </div>\n  </body>\n</html>"
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        0
+      ],
+      "id": "fe75cfc5-9b6e-4631-8471-80be586c94c1",
+      "name": "HTML"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "DATATABLE_ID_PLACEHOLDER",
+          "mode": "id"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "=ChargeType",
+              "condition": "=eq",
+              "keyValue": "Charged"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "3945f80f-ccc1-4f84-b824-99dff09b9f69",
+      "name": "Get row(s)"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Data": {
+      "main": [
+        [
+          {
+            "node": "Get Totals - Total Clients - Total Expiry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Totals - Total Clients - Total Expiry": {
+      "main": [
+        [
+          {
+            "node": "Generate Tables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Tables": {
+      "main": [
+        [
+          {
+            "node": "HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)": {
+      "main": [
+        [
+          {
+            "node": "Parse Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

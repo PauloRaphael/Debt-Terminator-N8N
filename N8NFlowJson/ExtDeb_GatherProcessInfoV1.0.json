@@ -1,0 +1,128 @@
+{
+  "name": "Debt_Terminator_Data_Aggregator",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  FETCH EXPIRATION RULES\n  ----------------------\n  Retrieves calculated due dates and payment terms for the specific process.\n  Used to determine if the debt is currently actionable (Overdue vs Due Soon).\n*/\nSELECT * FROM [Billing_Expiration_Table] \nWHERE ProcessID = {{ $json.process.OriginalCode }}"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        192
+      ],
+      "id": "6d8d4527-1b00-40f6-b142-5110adae4556",
+      "name": "Get Expiry Dates",
+      "retryOnFail": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  FETCH FINANCIAL COSTS\n  ---------------------\n  Retrieves the granular breakdown of costs (Freight, THC, Duties) \n  associated with this specific logistics process ID.\n*/\nSELECT * FROM [Process_Costs_Table] \nWHERE ProcessID = {{ $json.process.OriginalCode }}"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "ed904f9d-fb19-4fb7-abf1-e4dad292a29a",
+      "name": "Get Costs",
+      "retryOnFail": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -224,
+        96
+      ],
+      "id": "14d5e824-7622-48e0-9ef2-023a967406a0",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "mode": "mergeByIndex",
+        "joinMode": "enrichInput"
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        224,
+        96
+      ],
+      "id": "7486e9e4-5369-4296-ae0e-7440330043c0",
+      "name": "Merge Financial Data"
+    }
+  ],
+  "connections": {
+    "Get Expiry Dates": {
+      "main": [
+        [
+          {
+            "node": "Merge Financial Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get Costs": {
+      "main": [
+        [
+          {
+            "node": "Merge Financial Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get Expiry Dates",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Costs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

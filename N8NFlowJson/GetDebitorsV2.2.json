@@ -1,0 +1,345 @@
+{
+  "name": "Debt_Terminator_Core_ETL",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "FillDatabase",
+              "type": "boolean"
+            },
+            {
+              "name": "TOP"
+            },
+            {
+              "name": "AddConditional"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -448,
+        304
+      ],
+      "id": "13c3e8ec-58d7-4fa1-9803-d95ec7c3ead5",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  STEP 1: INGEST PROCESS DATA (ETL)\n  ---------------------------------\n  1. Selects distinct Import/Export processes from ERP Core Tables.\n  2. Joins with Bill of Lading (BL) and Booking tables.\n  3. Filters for specific payment terms (e.g., COLLECT vs PREPAID).\n  4. Excludes records found in the 'Non-Debitable' blacklist.\n  5. Maps raw ERP columns to the Staging Schema.\n*/\n\nINSERT INTO [Staging_Processes_Table] (\n    OriginalCode, MovementType, CargoType, HBL_Number, \n    RoutingOrder, ShipperName, ConsigneeName, Origin, \n    Destination, MainEventDate, BookingDate, ClientID, EmailRO\n)\nSELECT DISTINCT \n    ERP.Code, \n    'IMPORT/EXPORT', \n    ERP.CargoType,\n    ...\nFROM [ERP_Core_Tables] AS ERP\nLEFT JOIN [Blacklist_Table] ON ERP.ID = Blacklist.ID\nWHERE Blacklist.ID IS NULL"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        240
+      ],
+      "id": "244cdf46-956d-46b3-aa90-b44918cf347a",
+      "name": "Fill Processes",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "notesInFlow": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  STEP 2: COST NORMALIZATION\n  --------------------------\n  1. Iterates through 20+ distinct financial cost types (Freight, THC, Duties, Storage, etc.).\n  2. Normalizes currency codes (USD, EUR, BRL) into a standard format.\n  3. Checks payment status for each cost item.\n  4. Inserts breakdown into the Staging Costs table for granular billing.\n*/\n\n-- Example for THC Cost\nINSERT INTO [Staging_Costs_Table] (Code, CostType, Value, Currency, PayDate)\nSELECT Code, 'THC', Value, Currency, Date \nFROM [ERP_Financial_Tables]\nWHERE PaymentStatus = 'PENDING';\n\n-- [Repeated logic for Inland, Storage, Demurrage, etc.]"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        672,
+        240
+      ],
+      "id": "8e5562bf-085f-4035-93aa-769751ebb8cf",
+      "name": "Fill Costs",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "notesInFlow": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  STEP 3: CALCULATE EXPIRATION & SLA\n  ----------------------------------\n  1. Calculates Due Dates based on Issuance Date + Client Payment Terms.\n  2. Determines if the debt is currently actionable based on business rules (e.g., > 4 days overdue).\n  3. Classifies debt status (Overdue, Due Today, Future).\n*/\n\nINSERT INTO [Staging_Expiration_Table] (...)\nSELECT \n    Code, \n    DateAdd(day, TermDays, IssuanceDate) as DueDate,\n    'Calculated' as Status\nFROM [ERP_Billing_Tables]\nWHERE DueDate < GETDATE()"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        240
+      ],
+      "id": "b685b2db-38cb-44e0-b73a-55755d80a66b",
+      "name": "Fill Expiration Date",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "notesInFlow": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  STEP 4: CUSTOMER CONTACT AGGREGATION\n  ------------------------------------\n  1. Aggregates multiple email addresses for a single client into a prioritized string.\n  2. Uses XML PATH/STUFF to concatenate emails separated by commas.\n  3. Prioritizes 'Financial Dept' emails over generic contacts.\n*/\n\nWITH RawContacts AS (\n    SELECT DISTINCT ClientID, Email FROM [ERP_Contact_Table]\n)\nINSERT INTO [Staging_Clients_Table] (ClientID, EmailList)\nSELECT ClientID, \n    STUFF((SELECT ', ' + Email FROM RawContacts WHERE ... FOR XML PATH('')), 1, 2, '')\nFROM RawContacts\nGROUP BY ClientID"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        240
+      ],
+      "id": "e8eccdc6-bde8-4aa4-a894-e2c217424644",
+      "name": "Fill Customers",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "notesInFlow": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  RETURN DEBTOR LIST\n  ------------------\n  Returns the final processed list of clients and their respective metadata \n  to the main workflow for email generation.\n*/\nSELECT DISTINCT \n    {{ $('When Executed by Another Workflow').item.json.TOP ?? \"\" }} \n    ClientID, \n    ClientName, \n    EmailList \nFROM [Staging_Clients_Table] \n{{ $('When Executed by Another Workflow').first().json.AddConditional ?? \"\" }}"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        304
+      ],
+      "id": "19cdecab-f574-4eae-ad42-7236de2c6e98",
+      "name": "ReturnDebitors",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "2ae7a57d-cccd-4c64-8765-e29dad5de9d8",
+              "leftValue": "={{ $json.FillDatabase }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -224,
+        304
+      ],
+      "id": "4dfae91d-d9a1-4719-be86-dd4577852430",
+      "name": "If"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1120,
+        304
+      ],
+      "id": "7b21ca06-0fb1-4fcb-a338-fa56a78a7687",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  MAINTENANCE: CLEAN STAGING AREA\n  -------------------------------\n  Truncates all temporary staging tables to ensure a clean state \n  before starting the new ETL cycle.\n*/\nDELETE FROM [Staging_Costs_Table]\nDELETE FROM [Staging_Expiration_Table]\nDELETE FROM [Staging_Processes_Table]\nDELETE FROM [Staging_Clients_Table]"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        240
+      ],
+      "id": "18093bf4-4066-4577-9682-1287f7652214",
+      "name": "Delete Everything",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "notesInFlow": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  ANALYTICS: GET FINANCIAL TOTALS\n  -------------------------------\n  Generates a financial snapshot for the Dashboard:\n  1. Sums total recoverable debt by currency (BRL, USD, EUR).\n  2. Calculates aging buckets (Under 30 days, 30-60, 90+).\n*/\nSELECT SUM(Value) FROM [Staging_Costs_Table] GROUP BY Currency;\nSELECT COUNT(*) FROM [Staging_Processes_Table] WHERE Date < GETDATE()-90;"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "d2453f10-203d-4591-8141-2ee6421ad30b",
+      "name": "Get Totals",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fill Processes": {
+      "main": [
+        [
+          {
+            "node": "Fill Costs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fill Costs": {
+      "main": [
+        [
+          {
+            "node": "Fill Expiration Date",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fill Expiration Date": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fill Customers": {
+      "main": [
+        [
+          {
+            "node": "Fill Processes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Delete Everything",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "ReturnDebitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delete Everything": {
+      "main": [
+        [
+          {
+            "node": "Fill Customers",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "name": "Debt_Terminator_Inconsistency_Handler",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "52ac57b4-8d7e-42e9-b03d-b752d992be9c",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* DATA PARSING & FLATTENING */\n// Get all incoming items from the previous node\nconst items = $input.all();\n\nconst allInconsistencies = [];\n\nitems.forEach(item => {\n  try {\n    // 1. Parse the stringified JSON from the ChargeInfo field\n    const chargeData = JSON.parse(item.json.ChargeInfo);\n    \n    // 2. Extract the CustomerInconsistencies array\n    const inconsistencies = chargeData.CustomerInconsistencies || [];\n\n    // 3. Loop through each inconsistency found in this record\n    inconsistencies.forEach(inc => {\n      allInconsistencies.push({\n        json: {\n          ...inc,               // Spread the inconsistency data (Numero/HBL, Origem, etc.)\n          parentChargeId: item.json.id, // Keep the original database ID for reference\n          createdAt: item.json.createdAt\n        }\n      });\n    });\n\n  } catch (error) {\n    // If parsing fails, skip or log error (omitted for brevity)\n  }\n});\n\nreturn allInconsistencies;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        0
+      ],
+      "id": "67472097-7e6d-4986-904e-2824ba084222",
+      "name": "Parse Data"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "value": "DATATABLE_ID_PLACEHOLDER",
+          "mode": "id"
+        },
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "=ChargeType",
+              "condition": "=eq",
+              "keyValue": "Inconsistency"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "a3ffc4df-b7c3-4a93-8c03-c4a19b03be21",
+      "name": "Get row(s)"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get row(s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s)": {
+      "main": [
+        [
+          {
+            "node": "Parse Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

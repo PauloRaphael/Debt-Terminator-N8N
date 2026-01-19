@@ -1,0 +1,248 @@
+{
+  "name": "Debt_Terminator_Dashboard_Orchestrator",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"EmailFrom\": \"finance.automation@company.com\",\n  \"EmailTo\": \"manager@company.com\",\n  \"EmailCC\": \"audit@company.com\"\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -224,
+        96
+      ],
+      "id": "e16d310e-f5de-4629-833d-4e598c966cf8",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        448,
+        96
+      ],
+      "id": "c2f8d364-83e1-43f7-98bd-a97a17981b95",
+      "name": "Merge Dashboard Data"
+    },
+    {
+      "parameters": {
+        "fromEmail": "={{ $('When Executed by Another Workflow').first().json.EmailFrom }}",
+        "toEmail": "={{ $('When Executed by Another Workflow').first().json.EmailTo }}",
+        "ccEmail": "={{ $('When Executed by Another Workflow').first().json.EmailCC ?? \"\" }}",
+        "subject": "Debt Recovery Dashboard & Inconsistency Report",
+        "text": "=Please find attached the inconsistency report for process review.",
+        "html": "={{ $json.html }}",
+        "attachments": "data"
+      },
+      "type": "n8n-nodes-base.mailgun",
+      "typeVersion": 1,
+      "position": [
+        672,
+        96
+      ],
+      "id": "027eeba4-dabb-4775-b44a-1657f2c9af64",
+      "name": "Send Dashboard Email",
+      "retryOnFail": true,
+      "credentials": {
+        "mailgunApi": {
+          "id": "GENERIC_MAILGUN_CREDENTIALS",
+          "name": "Mailgun Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "SUB_WORKFLOW_ID_DASHBOARD_HTML",
+          "mode": "list",
+          "cachedResultUrl": "#",
+          "cachedResultName": "ExtDeb_CreateDashboardHTMLV1.0"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "41e6e2ce-025e-4a62-bb41-9354e0569286",
+      "name": "Create Dashboard HTML"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "SUB_WORKFLOW_ID_TABLE_CLEANER",
+          "mode": "list",
+          "cachedResultUrl": "#",
+          "cachedResultName": "ExtDeb_ClearDataTableV1.0"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        896,
+        96
+      ],
+      "id": "dc097253-1c08-4dd3-b0d0-b22437064cff",
+      "name": "Clear Data Table"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        192
+      ],
+      "id": "e115ae29-aa31-401c-a444-dbc4b109b6e9",
+      "name": "Convert to File"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "SUB_WORKFLOW_ID_INCONSISTENCY_HANDLER",
+          "mode": "list",
+          "cachedResultUrl": "#",
+          "cachedResultName": "ExtDeb_ReturnInconsistencyDataV1.0"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        192
+      ],
+      "id": "c5b03495-006d-422b-af9b-fcf6f3b16684",
+      "name": "Return Inconsistencies Data"
+    }
+  ],
+  "connections": {
+    "Merge Dashboard Data": {
+      "main": [
+        [
+          {
+            "node": "Send Dashboard Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Return Inconsistencies Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Create Dashboard HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Dashboard HTML": {
+      "main": [
+        [
+          {
+            "node": "Merge Dashboard Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Dashboard Email": {
+      "main": [
+        [
+          {
+            "node": "Clear Data Table",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Merge Dashboard Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Return Inconsistencies Data": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "Yxy0AGqkgJTP5l9V"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

@@ -1,0 +1,472 @@
+{
+  "name": "ExtDebV9.1",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "vH8OC7bACkS7kIM3",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/vH8OC7bACkS7kIM3",
+          "cachedResultName": "ExtDebDashboardCreationV1.0"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "EmailFrom": "={{ $json.fromEmail }}",
+            "EmailTo": "={{ $json.dashboardToEmails }}",
+            "EmailCC": "={{ $json.emailCC }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "EmailFrom",
+              "displayName": "EmailFrom",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "EmailTo",
+              "displayName": "EmailTo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "EmailCC",
+              "displayName": "EmailCC",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1152,
+        176
+      ],
+      "id": "",
+      "name": "Create and Send Dashboard",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "cxoVyowjjTZRT08B",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/cxoVyowjjTZRT08B",
+          "cachedResultName": "GetDebitorsV2.2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "FillDatabase": true
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "FillDatabase",
+              "displayName": "FillDatabase",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean"
+            },
+            {
+              "id": "TOP",
+              "displayName": "TOP",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "AddConditional",
+              "displayName": "AddConditional",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        320
+      ],
+      "id": "",
+      "name": "Get Debitors",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "qLvyHiG23e7eTwpM",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/qLvyHiG23e7eTwpM",
+          "cachedResultName": "ExtDeb_ChargeCustomerV1.0"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Cliente": "={{ $json }}"
+          },
+          "matchingColumns": [
+            "codigoCliente"
+          ],
+          "schema": [
+            {
+              "id": "Cliente",
+              "displayName": "Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        928,
+        368
+      ],
+      "id": "",
+      "name": "Charge Customer"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "",
+              "name": "fromEmail",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "",
+              "name": "dashboardToEmails",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "",
+              "name": "emailCC",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        928,
+        176
+      ],
+      "id": "",
+      "name": "Define Config",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "B5J5TpIO6zkUHsiR",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/B5J5TpIO6zkUHsiR",
+          "cachedResultName": "SendCockpitRequestV1.1"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "processSuccess": true,
+            "reprocess": false,
+            "startTime": "={{ DateTime.now().format('yyyy-MM-dd hh:mm:ss.SSS') }}",
+            "execMode": "prod",
+            "startOrEnd": "start",
+            "appCodeDev": "",
+            "appCodeProd": "",
+            "quantity": "={{ $input.all().length }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "execMode",
+              "displayName": "execMode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "startOrEnd",
+              "displayName": "startOrEnd",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "appCodeDev",
+              "displayName": "appCodeDev",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "appCodeProd",
+              "displayName": "appCodeProd",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "quantity",
+              "displayName": "quantity",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "number"
+            },
+            {
+              "id": "startTime",
+              "displayName": "startTime",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "endTime",
+              "displayName": "endTime",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "processSuccess",
+              "displayName": "processSuccess",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean"
+            },
+            {
+              "id": "reprocess",
+              "displayName": "reprocess",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "boolean"
+            },
+            {
+              "id": "addInfo",
+              "displayName": "addInfo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": false
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        320
+      ],
+      "id": "",
+      "name": "Send Cockpit Start Process",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        704,
+        320
+      ],
+      "id": "",
+      "name": "Loop Over Items"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ExtDeb",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        32,
+        320
+      ],
+      "id": "",
+      "name": "Webhook",
+      "webhookId": ""
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get Debitors": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Charge Customer": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Define Config": {
+      "main": [
+        [
+          {
+            "node": "Create and Send Dashboard",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cockpit Start Process": {
+      "main": [
+        [
+          {
+            "node": "Get Debitors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Items": {
+      "main": [
+        [
+          {
+            "node": "Define Config",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Charge Customer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send Cockpit Start Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "Yxy0AGqkgJTP5l9V",
+    "timezone": "America/Sao_Paulo",
+    "timeSavedMode": "fixed"
+  },
+  "versionId": "",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": ""
+  },
+  "id": "H6FZYOd33NhlSGBO",
+  "tags": [
+    {
+      "updatedAt": "2025-07-31T18:20:01.946Z",
+      "createdAt": "2025-07-31T18:20:01.946Z",
+      "id": "",
+      "name": "ExtDeb"
+    }
+  ]
+}

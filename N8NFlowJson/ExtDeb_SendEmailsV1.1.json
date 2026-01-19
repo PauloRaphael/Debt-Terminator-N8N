@@ -1,0 +1,379 @@
+{
+  "name": "Debt_Terminator_Communication_Engine",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "AVISTA",
+              "type": "object"
+            },
+            {
+              "name": "APRAZO",
+              "type": "object"
+            },
+            {
+              "name": "Cliente",
+              "type": "object"
+            },
+            {
+              "name": "Cobrador"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -448,
+        96
+      ],
+      "id": "1a5c0a16-5781-4c2e-aac7-39c694e743c7",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "3d5b36c2-6696-4c97-941a-f1ea8a958930",
+              "name": "APRAZO",
+              "value": "={{ $('When Executed by Another Workflow').first().json.APRAZO }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -224,
+        224
+      ],
+      "id": "27894372-8706-4444-a034-78929e704e67",
+      "name": "Split Flow: Term Payment (A Prazo)"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0df8400f-7f64-44df-9730-f67347346643",
+              "name": "AVISTA",
+              "value": "={{ $('When Executed by Another Workflow').first().json.AVISTA }}",
+              "type": "object"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -224,
+        -32
+      ],
+      "id": "203994e6-d922-4876-90f7-0c7f202302e3",
+      "name": "Split Flow: Spot Payment (A Vista)"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* \n  DYNAMIC HTML GENERATION (TERM PAYMENT)\n  --------------------------------------\n  1. Iterates through 'Term' processes.\n  2. Injects standard corporate branding.\n  3. Generates a dynamic HTML table listing all overdue invoices.\n  4. Calculates totals per currency (BRL/USD/EUR).\n*/\n\nconst clientData = $input.first().json.APRAZO;\n// [HTML Generation Logic Redacted]\n\nreturn {\n  html: \"<html>...</html>\",\n  subject: `Statement of Account - ${clientData.ClientName}`,\n  toEmail: clientData.Email\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        224
+      ],
+      "id": "e8df457b-76b6-4ac2-bc2f-a34524275333",
+      "name": "Generate Email Info A PRAZO"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* \n  DYNAMIC HTML GENERATION (SPOT PAYMENT)\n  --------------------------------------\n  1. Iterates through 'Spot' processes.\n  2. Selects correct BANKING DETAILS based on invoice currency.\n     (e.g., Selects Specific PIX Key for BRL, IBAN for EUR).\n  3. Generates HTML table with 'Pay Now' emphasis.\n*/\n\nconst clientData = $input.first().json.AVISTA;\n// [Banking Detail Injection Logic Redacted]\n\nreturn {\n  html: \"<html>...</html>\",\n  subject: `Urgent: Payment Required - ${clientData.ClientName}`,\n  toEmail: clientData.Email\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -32
+      ],
+      "id": "77490072-4663-44f2-9097-402964090209",
+      "name": "Generate Email Info A VISTA"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "67324522-7934-4531-8933-722134512312",
+              "leftValue": "={{ $json.AVISTA.processes.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        -32
+      ],
+      "id": "31234123-1234-4321-1234-123412341234",
+      "name": "IF PROCESSES A VISTA"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "98765432-1234-4321-1234-123412341234",
+              "leftValue": "={{ $json.APRAZO.processes.length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        0,
+        224
+      ],
+      "id": "45674567-4567-4567-4567-456745674567",
+      "name": "IF PROCESSES A PRAZO"
+    },
+    {
+      "parameters": {
+        "fromEmail": "finance-automation@company.com",
+        "toEmail": "={{ $json.toEmail }}",
+        "ccEmail": "={{ $('When Executed by Another Workflow').first().json.Cobrador }}",
+        "subject": "={{ $json.subject }}",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.mailgun",
+      "typeVersion": 1,
+      "position": [
+        448,
+        224
+      ],
+      "id": "89018901-8901-8901-8901-890189018901",
+      "name": "SEND EMAIL A PRAZO",
+      "retryOnFail": true,
+      "credentials": {
+        "mailgunApi": {
+          "id": "GENERIC_MAILGUN_CREDENTIALS",
+          "name": "Mailgun Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "finance-automation@company.com",
+        "toEmail": "={{ $json.toEmail }}",
+        "ccEmail": "={{ $('When Executed by Another Workflow').first().json.Cobrador }}",
+        "subject": "={{ $json.subject }}",
+        "html": "={{ $json.html }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.mailgun",
+      "typeVersion": 1,
+      "position": [
+        448,
+        -32
+      ],
+      "id": "23452345-2345-2345-2345-234523452345",
+      "name": "SEND EMAIL A VISTA",
+      "retryOnFail": true,
+      "credentials": {
+        "mailgunApi": {
+          "id": "GENERIC_MAILGUN_CREDENTIALS",
+          "name": "Mailgun Account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        704,
+        96
+      ],
+      "id": "abcdef12-1234-5678-90ab-cdef12345678",
+      "name": "Merge"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Split Flow: Spot Payment (A Vista)",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Split Flow: Term Payment (A Prazo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Flow: Spot Payment (A Vista)": {
+      "main": [
+        [
+          {
+            "node": "IF PROCESSES A VISTA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Flow: Term Payment (A Prazo)": {
+      "main": [
+        [
+          {
+            "node": "IF PROCESSES A PRAZO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF PROCESSES A VISTA": {
+      "main": [
+        [
+          {
+            "node": "Generate Email Info A VISTA",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "IF PROCESSES A PRAZO": {
+      "main": [
+        [
+          {
+            "node": "Generate Email Info A PRAZO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email Info A VISTA": {
+      "main": [
+        [
+          {
+            "node": "SEND EMAIL A VISTA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Email Info A PRAZO": {
+      "main": [
+        [
+          {
+            "node": "SEND EMAIL A PRAZO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SEND EMAIL A VISTA": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "SEND EMAIL A PRAZO": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/Sao_Paulo",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}

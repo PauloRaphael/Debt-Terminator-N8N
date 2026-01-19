@@ -1,0 +1,1116 @@
+{
+  "name": "Debt_Terminator_Core_Charger",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  FETCH PENDING PROCESSES\n  -----------------------\n  Retrieves all open logistics processes for the specific client ID \n  passed by the parent workflow.\n*/\nSELECT * FROM [Process_Staging_Table] \nWHERE ClientID = {{ $('When Executed by Another Workflow').first().json.Cliente.ClienteID }}"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        -1792,
+        288
+      ],
+      "id": "bf725b1f-fec6-4535-a4eb-a7b80c1b56bb",
+      "name": "Get Customer Processes",
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 5,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fbaaaa0c-e694-48bd-838c-1507f5c6f84a",
+              "leftValue": "={{ $json.process.TipoMovimentacao === 'IMPO' &&  $json.process.RoutingOrder == true}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1344,
+        288
+      ],
+      "id": "3f8c23a7-07a2-4b7b-9829-02bbe11c0f7f",
+      "name": "IF IMPO RO"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "SUB_WORKFLOW_ID_01",
+          "mode": "list",
+          "cachedResultUrl": "#",
+          "cachedResultName": "ExtDeb_GatherProcessInfoV1.0"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "process": "={{ $json }}"
+          },
+          "matchingColumns": [
+            "processID"
+          ],
+          "schema": [
+            {
+              "id": "process",
+              "displayName": "process",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "mode": "each",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -1568,
+        288
+      ],
+      "id": "16f366e5-a73f-4cb1-97e5-03036d16c255",
+      "name": "Process Processes"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* ERROR HANDLING: NO EMAIL */\nconst tableRowsJson = $input.all().map(item => {\n    const dados = item.json.process;\n\n    return {\n        'Numero/HBL': dados.HBL_Numero || \"\",\n         Origem: dados.Origem || \"\",\n         Destino: dados.Destino || \"\",\n        'Data Da Chegada/Saida': dados.DataEventoPrincipal ? new Date(dados.DataEventoPrincipal).toLocaleDateString('pt-BR') : null,\n        'Nome Do Cliente': $('When Executed by Another Workflow').first().json.Cliente.NomeCliente,\n        'Inconsistência': 'Missing Billing Email'\n    };\n});\n\nreturn {\n  CustomerInconsistencies: tableRowsJson\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        576
+      ],
+      "id": "6afa7206-2b97-4305-aa64-5626c9691f7a",
+      "name": "Create Inconsitencies JSON",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "/* LOGIC: EMAIL CONSISTENCY CHECK */\nconst items = $input.all();\nconst emails = items.map(item => item.json.process?.EmailRO || null);\n\n// Integrity Checks\nconst allNull = emails.every(email => email === null);\nconst allSame = emails.every(email => email === emails[0]); \nconst hasNull = emails.includes(null);\n\nlet inconsistencia;\nif (allNull) {\n    inconsistencia = \"Missing Email\";\n} else if (!allSame || hasNull) {\n    inconsistencia = \"Multiple Conflicting Emails for Single Routing Order\";\n} else {\n    inconsistencia = \"Valid\";\n}\n\n// Generate output\nconst tableRowsJson = items.map(item => {\n    const dados = item.json.process;\n    return {\n        'Numero/HBL': dados.HBL_Numero || \"\",\n        Origem: dados.Origem || \"\",\n        Destino: dados.Destino || \"\",\n        'Data Da Chegada/Saida': dados.DataEventoPrincipal\n            ? new Date(dados.DataEventoPrincipal).toLocaleDateString('pt-BR')\n            : null,\n        'Nome Do Cliente': $('When Executed by Another Workflow').first().json.Cliente.NomeCliente,\n        'Inconsistência': inconsistencia\n    };\n});\n\nreturn {\n  CustomerInconsistencies: tableRowsJson\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "c396b820-4c96-4154-bc71-cfcd30060e6a",
+      "name": "Create Inconsitencies JSON IMPO RO",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "71436f5e-356b-4bc1-b783-c3369c96892a",
+              "leftValue": "={{ $('When Executed by Another Workflow').first().json.Cliente.EmailClientePrincipal }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1120,
+        528
+      ],
+      "id": "24191ff9-26c7-46c5-8055-4aa5046b884e",
+      "name": "If Has Customer Has E-mail"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "fb8cb222-7248-4589-b819-ef03468b4d09",
+              "leftValue": "={{\n  !$input.all().map(item => item.json.process.EmailRO).every((email, _, arr) => email === arr[0] && email != null && email != \"\")\n}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -1120,
+        48
+      ],
+      "id": "9a7ae9bc-0d96-49f9-93bb-1793fcf8b9d3",
+      "name": "More Than One E-mail or Null E-mails IMPO RO"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        -896,
+        288
+      ],
+      "id": "0019d3ca-fd6b-4562-b8ee-74008ac36158",
+      "name": "Merge Processes"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "/* \n  FETCH FINANCIAL RESPONSIBLE\n  ---------------------------\n  Joins Client tables to find the specific Debt Collector assigned to this account.\n*/\nSELECT DISTINCT EmailResponsavel \nFROM [Collection_Team_Table] \nWHERE ClientID = {{ $('When Executed by Another Workflow').first().json.Cliente.ClienteID }}"
+      },
+      "type": "n8n-nodes-base.microsoftSql",
+      "typeVersion": 1.1,
+      "position": [
+        -2016,
+        288
+      ],
+      "id": "95954563-737e-44ed-9d1a-dee1d8f43182",
+      "name": "Get Customers Charger",
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 5,
+      "credentials": {
+        "microsoftSql": {
+          "id": "GENERIC_SQL_CREDENTIALS",
+          "name": "Production Database"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "/* API PREP: COCKPIT METRICS */\nfunction getDate(date) {\n  const datetimmed = new Date(date);\n  // [Date Formatting Logic Redacted for Brevity]\n  return datetimmed.toISOString(); \n}\n\nlet startDate = getDate($('Get StartTime and CodigoCliente').first().json.StartTime);\nlet endDate = getDate(new Date());\n\nconst items = $('Process Processes').all();\nconst processosImpo = items.filter(item => item.json.process?.TipoMovimentacao === 'IMPO');\nconst processosExpo = items.filter(item => item.json.process?.TipoMovimentacao === 'EXPO');\n\nconst totalCobrado = processosImpo.length + processosExpo.length;\n\nconst clienteNome = $('Get StartTime and CodigoCliente').first().json.CodigoCliente\n                 || $('When Executed by Another Workflow').first().json.Cliente?.NomeCliente\n                 || \"Unknown\";\n\nreturn {\n  startDate,\n  endDate,\n  infos: [\n    { Cliente: clienteNome },\n    { QuantidadeProcessos: totalCobrado },\n    { processosImpoCount: processosImpo.length },\n    { processosExpoCount: processosExpo.length }\n  ]\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        896,
+        288
+      ],
+      "id": "ddf0be22-64c6-4a97-b3b4-c1eaf09e8c17",
+      "name": "Create CockPit Api JSON"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "SUB_WORKFLOW_ID_02",
+          "mode": "list",
+          "cachedResultUrl": "#",
+          "cachedResultName": "SendCockpitRequestV1.1"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "processSuccess": true,
+            "reprocess": false,
+            "quantity": "={{ $json.infos[1].QuantidadeProcessos }}",
+            "execMode": "prod",
+            "startOrEnd": "end",
+            "appCodeProd": "={{ $env[\"APP_CODE_PROD\"] }}",
+            "startTime": "={{ $json.startDate }}",
+            "appCodeDev": "={{ $env[\"APP_CODE_DEV\"] }}",
+            "endTime": "={{ $json.endDate }}",
+            "addInfo": "={{ $json.infos.toJsonString() }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "execMode",
+              "displayName": "execMode",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        1120,
+        288
+      ],
+      "id": "12a317b3-2fcf-4c6d-89d1-d5cfdfeb5729",
+      "name": "Send Cockpit End Process",
+      "notesInFlow": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "f8e0ab3c-197e-40d2-a0a5-5c06c095c12b",
+              "name": "Cliente",
+              "value": "={{ $input.first().json }}",
+              "type": "object"
+            },
+            {
+              "id": "f520a1e2-3c11-45a8-99da-d81a27e53819",
+              "name": "StartTime",
+              "value": "={{ $now }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2240,
+        288
+      ],
+      "id": "3f05716e-69e3-424f-ad78-7ffe5b23511c",
+      "name": "Get StartTime and CodigoCliente"
+    },
+    {
+      "parameters": {
+        "numberInputs": 4
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        672,
+        256
+      ],
+      "id": "0cbcb90e-7391-4a32-875a-e206983c5654",
+      "name": "Merge Exec Data"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "631c63d9-a7a3-4125-baa1-485127423a1c",
+              "name": "NomeCliente",
+              "value": "={{ $('When Executed by Another Workflow').first().json.Cliente.NomeCliente }}",
+              "type": "string"
+            },
+            {
+              "id": "e66b17f4-4fb7-4d14-b4b4-896d70cd3bc6",
+              "name": "processosImpo",
+              "value": "={{ $('Merge Processes').all().filter(item => item.json.process.TipoMovimentacao === 'IMPO').map(item => item.json) }}",
+              "type": "array"
+            },
+            {
+              "id": "be923998-0407-4bf5-b1c5-e6bd34529b58",
+              "name": "processosExpo",
+              "value": "={{ $('Merge Processes').all().filter(item => item.json.process.TipoMovimentacao === 'EXPO').map(item => item.json) }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        0,
+        192
+      ],
+      "id": "de98fbdf-edb3-4d64-8e96-7ce9e568ea11",
+      "name": "Return Processos",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "SUB_WORKFLOW_ID_03",
+          "mode": "list",
+          "cachedResultUrl": "#",
+          "cachedResultName": "ExtDeb_SendEmailsV1.1"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Cliente": "={{ $('When Executed by Another Workflow').first().json.Cliente }}",
+            "AVISTA": "={{ $json.AVISTA }}",
+            "APRAZO": "={{ $json.APRAZO }}",
+            "Cobrador": "={{ $('Get Customers Charger').first().json.EmailReponsavel ?? \"\" }}"
+          },
+          "matchingColumns": [
+            "groups"
+          ],
+          "schema": [
+            {
+              "id": "AVISTA",
+              "displayName": "AVISTA",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "object",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        -224,
+        192
+      ],
+      "id": "4adbab63-ad24-42e7-a2e6-92192e7b7df3",
+      "name": "Send Emails"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "79647551-e659-4551-8827-34e6503bd955",
+              "name": "ChargeInfo",
+              "value": "={{ $json.toJsonString() }}",
+              "type": "string"
+            },
+            {
+              "id": "9a10f595-819d-43c9-bae3-1efa40a13afd",
+              "name": "ChargeType",
+              "value": "Inconsistency",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ],
+      "id": "5904d184-6b18-406d-99e6-605650b41558",
+      "name": "Set Inconsistency Data IMPO RO",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "ee69a760-78d8-44a2-98b8-1a6b3d077f37",
+              "name": "ChargeInfo",
+              "value": "={{ $json.toJsonString() }}",
+              "type": "string"
+            },
+            {
+              "id": "1b42ff1d-935a-4726-b4c4-15c2fe0a86a3",
+              "name": "ChargeType",
+              "value": "Charged",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        192
+      ],
+      "id": "084f4c31-698b-489d-a2fc-2ec6b6ef6a0e",
+      "name": "Set Charge Data",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "79647551-e659-4551-8827-34e6503bd955",
+              "name": "ChargeInfo",
+              "value": "={{ $json.toJsonString() }}",
+              "type": "string"
+            },
+            {
+              "id": "064148d6-3ea2-4dcb-937c-71028cd57767",
+              "name": "ChargeType",
+              "value": "Inconsistency",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        576
+      ],
+      "id": "9df55362-157b-4f7f-8e38-7932dcabc185",
+      "name": "Set Inconsistency Data",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1344,
+        288
+      ],
+      "id": "039e6adf-44a2-4fea-9f6f-eb52cd247d56",
+      "name": "Return Nothing"
+    },
+    {
+      "parameters": {
+        "jsCode": "/* BUSINESS LOGIC: GROUPING BY PAYMENT TYPE (SPOT vs TERM) */\nconst data = $input.all();\nconst clienteEmailPrincipal = $('When Executed by Another Workflow').first().json.Cliente.EmailClientePrincipal;\n\nconst groups = {\n  AVISTA: { EmailClienteReal: \"\", processes: [] },\n  APRAZO: { EmailClienteReal: \"\", processes: [] }\n};\n\nlet roEmailAvista = \"\";\nlet roEmailAPrazo = \"\";\n\n// Iterate and sort processes\ndata.forEach(item => {\n  const isAPrazo = item.json.expiry;\n\n  if (item.json.process.RoutingOrder) {\n    if (isAPrazo && !roEmailAPrazo) {\n      roEmailAPrazo = item.json.process.EmailRO || \"\";\n    }\n    if (!isAPrazo && !roEmailAvista) {\n      roEmailAvista = item.json.process.EmailRO || \"\";\n    }\n  }\n\n  if (isAPrazo) {\n    groups.APRAZO.processes.push(item.json);\n  } else {\n    groups.AVISTA.processes.push(item.json);\n  }\n});\n\n// Helper to de-dupe emails\nfunction mergeEmails(clienteEmail, roEmail) {\n  const clienteEmailsArr = clienteEmail ? clienteEmail.split(/[,;]/).map(e => e.trim()).filter(Boolean) : [];\n  const emailsSet = new Set(clienteEmailsArr);\n  if (roEmail) {\n    roEmail.split(/[,;]/).map(e => e.trim()).filter(Boolean).forEach(e => emailsSet.add(e));\n  }\n  return Array.from(emailsSet).join(\",\");\n}\n\ngroups.AVISTA.EmailClienteReal = mergeEmails(clienteEmailPrincipal, roEmailAvista);\ngroups.APRAZO.EmailClienteReal = mergeEmails(clienteEmailPrincipal, roEmailAPrazo);\n\nreturn [{ json: groups }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -672,
+        288
+      ],
+      "id": "fd856967-a6f5-488f-9e79-b6541e1a7248",
+      "name": "Group Processes"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "79647551-e659-4551-8827-34e6503bd955",
+              "name": "ChargeInfo",
+              "value": "={{ $json.toJsonString() }}",
+              "type": "string"
+            },
+            {
+              "id": "a6aa8979-088b-40ab-9076-664410783c04",
+              "name": "ChargeType",
+              "value": "Inconsistency",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        384
+      ],
+      "id": "6d110b29-211a-47d8-9f2e-041a55c331c5",
+      "name": "Set Inconsistency Invalid E-mails Data",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "/* ERROR HANDLING: INVALID EMAIL SYNTAX */\nconst input = $input.first().json;\nconst cliente = $('When Executed by Another Workflow').first().json.Cliente;\nlet emails = input.AVISTA.EmailClienteReal + input.APRAZO.EmailClienteReal;\n\nconst allProcesses = [\n  ...(input.AVISTA?.processes || []),\n  ...(input.APRAZO?.processes || [])\n];\n\nconst tableRowsJson = allProcesses.map(proc => ({\n  'Numero/HBL': proc.process.HBL_Numero || \"\",\n  Origem: proc.process.Origem || \"\",\n  Destino: proc.process.Destino || \"\",\n  'Data Da Chegada/Saida': proc.process.DataEventoPrincipal \n      ? new Date(proc.process.DataEventoPrincipal).toLocaleDateString('pt-BR') \n      : null,\n  'Nome Do Cliente': cliente.NomeCliente || \"\",\n  'Inconsistência': `Invalid Email Format Detected: ${emails}`\n}));\n\nreturn {\n  CustomerInconsistencies: tableRowsJson\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        0,
+        384
+      ],
+      "id": "89d79c70-064b-4dbb-b0de-910abf912cfa",
+      "name": "Create Inconsitencies Invalid E-mails JSON ",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e133aaba-d5d5-47c0-9fd3-568f2eb1bb52",
+              "leftValue": "={{  !$json.APRAZO.EmailClienteReal || $json.AVISTA.EmailClienteReal.split(',').every(email => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/.test(email.trim())); }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            },
+            {
+              "id": "537189d6-e5ae-4654-955d-87eda1cc0dc6",
+              "leftValue": "={{ !$json.APRAZO.EmailClienteReal || $json.APRAZO.EmailClienteReal.split(',').every(email => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$/.test(email.trim())); }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -448,
+        288
+      ],
+      "id": "6edf9e55-579b-430d-98e8-ae3bc89cd47a",
+      "name": "If Email's are valid"
+    },
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            {
+              "name": "Cliente",
+              "type": "object"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -2464,
+        288
+      ],
+      "id": "2e37780e-8ca9-4d05-b7f9-bd7bd5582179",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "DATATABLE_ID_PLACEHOLDER"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "ChargeInfo",
+              "displayName": "ChargeInfo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "ChargeType",
+              "displayName": "ChargeType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        448,
+        192
+      ],
+      "id": "ecdc7538-b734-418c-8e21-16e48d4e8651",
+      "name": "Insert Charged"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DATATABLE_ID_PLACEHOLDER"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "dc8d85f0-2991-4cb4-9464-8325089aa250",
+      "name": "Insert IMPO RO Inconsistency"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DATATABLE_ID_PLACEHOLDER"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        448,
+        384
+      ],
+      "id": "16f3d87f-0723-47ac-97d5-d440578cd868",
+      "name": "Insert Invalid Emails Data"
+    },
+    {
+      "parameters": {
+        "dataTableId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "DATATABLE_ID_PLACEHOLDER"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1,
+      "position": [
+        448,
+        576
+      ],
+      "id": "4f9be550-a471-4942-a904-784439d7a208",
+      "name": "Insert Inconsistencies Data"
+    }
+  ],
+  "connections": {
+    "Get Customer Processes": {
+      "main": [
+        [
+          {
+            "node": "Process Processes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF IMPO RO": {
+      "main": [
+        [
+          {
+            "node": "More Than One E-mail or Null E-mails IMPO RO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If Has Customer Has E-mail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Processes": {
+      "main": [
+        [
+          {
+            "node": "IF IMPO RO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Has Customer Has E-mail": {
+      "main": [
+        [
+          {
+            "node": "Merge Processes",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Create Inconsitencies JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Inconsitencies JSON IMPO RO": {
+      "main": [
+        [
+          {
+            "node": "Set Inconsistency Data IMPO RO",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Inconsitencies JSON": {
+      "main": [
+        [
+          {
+            "node": "Set Inconsistency Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "More Than One E-mail or Null E-mails IMPO RO": {
+      "main": [
+        [
+          {
+            "node": "Create Inconsitencies JSON IMPO RO",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge Processes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Processes": {
+      "main": [
+        [
+          {
+            "node": "Group Processes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Customers Charger": {
+      "main": [
+        [
+          {
+            "node": "Get Customer Processes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create CockPit Api JSON": {
+      "main": [
+        [
+          {
+            "node": "Send Cockpit End Process",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get StartTime and CodigoCliente": {
+      "main": [
+        [
+          {
+            "node": "Get Customers Charger",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Cockpit End Process": {
+      "main": [
+        [
+          {
+            "node": "Return Nothing",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Exec Data": {
+      "main": [
+        [
+          {
+            "node": "Create CockPit Api JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Return Processos": {
+      "main": [
+        [
+          {
+            "node": "Set Charge Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Emails": {
+      "main": [
+        [
+          {
+            "node": "Return Processos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Inconsistency Data IMPO RO": {
+      "main": [
+        [
+          {
+            "node": "Insert IMPO RO Inconsistency",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Charge Data": {
+      "main": [
+        [
+          {
+            "node": "Insert Charged",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Inconsistency Data": {
+      "main": [
+        [
+          {
+            "node": "Insert Inconsistencies Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Group Processes": {
+      "main": [
+        [
+          {
+            "node": "If Email's are valid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set Inconsistency Invalid E-mails Data": {
+      "main": [
+        [
+          {
+            "node": "Insert Invalid Emails Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Inconsitencies Invalid E-mails JSON ": {
+      "main": [
+        [
+          {
+            "node": "Set Inconsistency Invalid E-mails Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Email's are valid": {
+      "main": [
+        [
+          {
+            "node": "Send Emails",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Create Inconsitencies Invalid E-mails JSON ",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Get StartTime and CodigoCliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Charged": {
+      "main": [
+        [
+          {
+            "node": "Merge Exec Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Insert IMPO RO Inconsistency": {
+      "main": [
+        [
+          {
+            "node": "Merge Exec Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Invalid Emails Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Exec Data",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Insert Inconsistencies Data": {
+      "main": [
+        [
+          {
+            "node": "Merge Exec Data",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "none",
+    "saveExecutionProgress": false,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "timezone": "America/Sao_Paulo",
+    "timeSavedMode": "fixed"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true
+  }
+}
